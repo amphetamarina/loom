@@ -41,13 +41,13 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
       <div className="bg-background border border-border rounded-lg w-full max-w-3xl max-h-[80vh] overflow-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background">
-          <h2 className="text-lg font-semibold">Detalhes do Nó</h2>
+          <h2 className="text-lg font-semibold">Node Details</h2>
           <div className="flex items-center gap-2">
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
                 className="p-2 hover:bg-accent rounded"
-                title="Editar"
+                title="Edit"
               >
                 <Edit2 size={18} />
               </button>
@@ -74,7 +74,7 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
                   className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 flex items-center gap-2"
                 >
                   <Save size={16} />
-                  Salvar
+                  Save
                 </button>
                 <button
                   onClick={() => {
@@ -83,41 +83,41 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
                   }}
                   className="px-4 py-2 border border-border rounded hover:bg-accent"
                 >
-                  Cancelar
+                  Cancel
                 </button>
               </div>
             </div>
           ) : (
             <div className="prose prose-invert max-w-none">
               <div className="whitespace-pre-wrap font-mono text-sm p-4 bg-muted rounded-lg">
-                {node.text || '(vazio)'}
+                {node.text || '(empty)'}
               </div>
             </div>
           )}
 
           {/* Metadata */}
           <div className="mt-6 pt-6 border-t border-border">
-            <h3 className="text-sm font-semibold mb-3">Metadados</h3>
+            <h3 className="text-sm font-semibold mb-3">Metadata</h3>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-muted-foreground">ID:</span>
                 <span className="ml-2 font-mono">{node.id.substring(0, 8)}...</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Filhos:</span>
+                <span className="text-muted-foreground">Children:</span>
                 <span className="ml-2">{node.children.length}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Caracteres:</span>
+                <span className="text-muted-foreground">Characters:</span>
                 <span className="ml-2">{node.text.length}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Palavras:</span>
+                <span className="text-muted-foreground">Words:</span>
                 <span className="ml-2">{node.text.split(/\s+/).filter(Boolean).length}</span>
               </div>
               {node.bookmark && (
                 <div>
-                  <span className="text-yellow-500">⭐ Favoritado</span>
+                  <span className="text-yellow-500">⭐ Bookmarked</span>
                 </div>
               )}
             </div>

@@ -43,27 +43,20 @@ export const GenerateDialog: React.FC<GenerateDialogProps> = ({ treeId, onClose 
       // Initialize AI service
       const aiService = new AIService(modelConfig);
 
-      // Generate with streaming
+      // Generate completions
       toast.loading(`Generating ${generationSettings.num_continuations} continuations...`, {
         id: 'generating',
       });
 
-      const completedTexts: string[] = [];
+      const results = await aiService.generateCompletions(prompt, generationSettings);
 
-      await aiService.generateStreaming(
-        prompt,
-        generationSettings,
-        (_completionIndex: number, text: string, done: boolean) => {
-          if (done) {
-            // Create final node
-            createNode(treeId, text, currentNode.id);
-            completedTexts.push(text);
-          }
-        }
-      );
+      // Create nodes for all results
+      results.forEach((text) => {
+        createNode(treeId, text, currentNode.id);
+      });
 
       // Navigate to first child
-      if (completedTexts.length > 0) {
+      if (results.length > 0) {
         const firstChildId = tree.nodes[currentNode.id].children[0];
         if (firstChildId) {
           setCurrentNode(treeId, firstChildId);

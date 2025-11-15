@@ -23,8 +23,8 @@ interface TreeViewProps {
   treeId: string;
 }
 
-const horizontalSpacing = 350; // Espaçamento entre níveis (esquerda-direita)
-const verticalSpacing = 120;   // Espaçamento entre irmãos (cima-baixo)
+const horizontalSpacing = 450; // Spacing between levels (left-right)
+const verticalSpacing = 180;   // Spacing between siblings (top-bottom)
 
 const nodeTypes: NodeTypes = {
   editable: EditableNode,
@@ -35,7 +35,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
   const { generationSettings, modelConfigs, preferences } = useSettingsStore();
   const tree = trees[treeId];
   const [generatingNodes, setGeneratingNodes] = useState<Set<string>>(new Set());
-  const [streamingNodes, setStreamingNodes] = useState<Map<string, string>>(new Map());
+  const [loadingNodes, setLoadingNodes] = useState<Map<string, number>>(new Map()); // nodeId -> number of loading placeholders
   const [selectedNodeForDetail, setSelectedNodeForDetail] = useState<string | null>(null);
   const [reconnectingNodeId, setReconnectingNodeId] = useState<string | null>(null);
 
@@ -44,7 +44,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
       const positions: Record<string, { x: number; y: number }> = {};
       const visited = new Set<string>();
 
-      // Calcula a altura (vertical) da subárvore
+      // Calculate the height (vertical) of the subtree
       const calculateSubtreeHeight = (nodeId: string): number => {
         const node = nodes[nodeId];
         if (!node || visited.has(nodeId)) return 1;
@@ -57,7 +57,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
         }, 0);
       };
 
-      // Layout horizontal: x aumenta para direita, y aumenta para baixo
+      // Horizontal layout: x increases to the right, y increases downward
       const layout = (nodeId: string, x: number, y: number, visited: Set<string>): number => {
         const node = nodes[nodeId];
         if (!node || visited.has(nodeId)) return y;
@@ -86,7 +86,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
   const handleEditNode = useCallback(
     (nodeId: string, text: string) => {
       updateNode(treeId, nodeId, { text });
-      toast.success('Texto atualizado');
+      toast.success('Text updated');
     },
     [treeId, updateNode]
   );
@@ -94,11 +94,12 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
   const handleGenerateFromNode = useCallback(
     async (nodeId: string) => {
       if (generatingNodes.has(nodeId)) {
-        toast.error('Já está gerando para este nó');
+        toast.error('Already generating for this node');
         return;
       }
 
       setGeneratingNodes((prev) => new Set(prev).add(nodeId));
+      setLoadingNodes((prev) => new Map(prev).set(nodeId, generationSettings.num_continuations));
 
       try {
         // Build prompt from ancestry
@@ -106,9 +107,14 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
         const prompt = ancestry.map((node) => node.text).join('\n');
 
         if (!prompt.trim()) {
-          toast.error('Adicione algum texto antes de gerar');
+          toast.error('Add some text before generating');
           setGeneratingNodes((prev) => {
             const next = new Set(prev);
+            next.delete(nodeId);
+            return next;
+          });
+          setLoadingNodes((prev) => {
+            const next = new Map(prev);
             next.delete(nodeId);
             return next;
           });
@@ -118,50 +124,37 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
         // Get model config
         const modelConfig = modelConfigs[generationSettings.model];
         if (!modelConfig) {
-          throw new Error('Configuração do modelo não encontrada');
+          throw new Error('Model configuration not found');
         }
 
         // Initialize AI service
         const aiService = new AIService(modelConfig);
 
-        // Generate with streaming
-        toast.loading(`Gerando ${generationSettings.num_continuations} continuações...`, {
+        // Generate completions
+        toast.loading(`Generating ${generationSettings.num_continuations} continuations...`, {
           id: 'generating',
         });
 
-        await aiService.generateStreaming(
-          prompt,
-          generationSettings,
-          (completionIndex: number, text: string, done: boolean) => {
-            if (!done) {
-              // Update streaming state
-              setStreamingNodes((prev) => {
-                const next = new Map(prev);
-                next.set(`${nodeId}-${completionIndex}`, text);
-                return next;
-              });
-            } else {
-              // Create final node
-              createNode(treeId, text, nodeId);
+        const results = await aiService.generateCompletions(prompt, generationSettings);
 
-              // Clear streaming state for this completion
-              setStreamingNodes((prev) => {
-                const next = new Map(prev);
-                next.delete(`${nodeId}-${completionIndex}`);
-                return next;
-              });
-            }
-          }
-        );
+        // Create nodes for all results
+        results.forEach((text) => {
+          createNode(treeId, text, nodeId);
+        });
 
         toast.dismiss('generating');
-        toast.success(`Continuações geradas!`);
+        toast.success(`Continuations generated!`);
       } catch (error) {
         console.error('Generation failed:', error);
-        toast.error(error instanceof Error ? error.message : 'Falha na geração');
+        toast.error(error instanceof Error ? error.message : 'Generation failed');
       } finally {
         setGeneratingNodes((prev) => {
           const next = new Set(prev);
+          next.delete(nodeId);
+          return next;
+        });
+        setLoadingNodes((prev) => {
+          const next = new Map(prev);
           next.delete(nodeId);
           return next;
         });
@@ -184,8 +177,8 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
   const handleAddChild = useCallback(
     (nodeId: string) => {
       // Create a new empty child node
-      createNode(treeId, '(novo nó - clique duplo para editar)', nodeId);
-      toast.success('Nó filho adicionado');
+      createNode(treeId, '(new node - double-click to edit)', nodeId);
+      toast.success('Child node added');
     },
     [treeId, createNode]
   );
@@ -194,7 +187,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
     (nodeId: string) => {
       // Start reconnecting mode
       setReconnectingNodeId(nodeId);
-      toast.success('Clique em outro nó para reconectar');
+      toast.success('Click on another node to reconnect');
     },
     []
   );
@@ -225,34 +218,34 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
       });
     });
 
-    // Add streaming nodes as temporary children (layout horizontal)
-    streamingNodes.forEach((text, key) => {
-      const [parentId, completionIndex] = key.split('-');
+    // Add loading skeleton nodes as temporary children
+    loadingNodes.forEach((count, parentId) => {
       const parent = tree.nodes[parentId];
       if (parent && positions[parentId]) {
-        const tempId = `temp-${key}`;
         const parentPos = positions[parentId];
-        const childIndex = parseInt(completionIndex);
 
-        allNodes.push({
-          id: tempId,
-          type: 'editable',
-          position: {
-            x: parentPos.x + horizontalSpacing,
-            y: parentPos.y + (childIndex - 1.5) * verticalSpacing / 2,
-          },
-          data: {
-            text: text,
-            bookmark: false,
-            isSelected: false,
-            isStreaming: true,
-            truncateLength: preferences.node_text_truncate,
-            onEdit: () => {},
-            onGenerate: () => {},
-            onDetailClick: () => {},
-            onAddChild: () => {},
-          },
-        });
+        for (let i = 0; i < count; i++) {
+          const tempId = `loading-${parentId}-${i}`;
+          allNodes.push({
+            id: tempId,
+            type: 'editable',
+            position: {
+              x: parentPos.x + horizontalSpacing,
+              y: parentPos.y + (i - (count - 1) / 2) * verticalSpacing,
+            },
+            data: {
+              text: '',
+              bookmark: false,
+              isSelected: false,
+              isLoading: true,
+              truncateLength: preferences.node_text_truncate,
+              onEdit: () => {},
+              onGenerate: () => {},
+              onDetailClick: () => {},
+              onAddChild: () => {},
+            },
+          });
+        }
       }
     });
 
@@ -279,29 +272,31 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
       });
     });
 
-    // Add edges for streaming nodes
-    streamingNodes.forEach((_, key) => {
-      const [parentId] = key.split('-');
-      const tempId = `temp-${key}`;
-      edges.push({
-        id: `${parentId}-${tempId}`,
-        source: parentId,
-        target: tempId,
-        type: 'smoothstep',
-        animated: true,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: '#3b82f6',
-        },
-        style: {
-          stroke: '#3b82f6',
-          strokeWidth: 2,
-        },
-      });
+    // Add edges for loading nodes with pulsating animation
+    loadingNodes.forEach((count, parentId) => {
+      for (let i = 0; i < count; i++) {
+        const tempId = `loading-${parentId}-${i}`;
+        edges.push({
+          id: `${parentId}-${tempId}`,
+          source: parentId,
+          target: tempId,
+          type: 'smoothstep',
+          animated: true,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#3b82f6',
+          },
+          style: {
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+          },
+          className: 'animate-pulse',
+        });
+      }
     });
 
     return { nodes: allNodes, edges };
-  }, [tree, calculateLayout, handleEditNode, handleGenerateFromNode, handleNodeDetailClick, handleAddChild, handleReconnect, generatingNodes, streamingNodes, preferences.node_text_truncate]);
+  }, [tree, calculateLayout, handleEditNode, handleGenerateFromNode, handleNodeDetailClick, handleAddChild, handleReconnect, generatingNodes, loadingNodes, preferences.node_text_truncate]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
@@ -317,12 +312,12 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
-      if (node.id.startsWith('temp-')) return;
+      if (node.id.startsWith('loading-')) return;
 
       // If in reconnecting mode, set this node as the new parent
       if (reconnectingNodeId && reconnectingNodeId !== node.id) {
         reparentNode(treeId, reconnectingNodeId, node.id);
-        toast.success('Nó reconectado! Gerar novas continuações?');
+        toast.success('Node reconnected! Generate new continuations?');
         setReconnectingNodeId(null);
         setCurrentNode(treeId, reconnectingNodeId);
       } else {
@@ -335,7 +330,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
   if (!tree) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        Nenhuma árvore carregada
+        No tree loaded
       </div>
     );
   }
@@ -361,7 +356,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
           <MiniMap
             nodeColor={(node) => {
               if (node.id === tree.currentNodeId) return '#3b82f6';
-              if (node.id.startsWith('temp-')) return '#10b981';
+              if (node.id.startsWith('loading-')) return '#f59e0b';
               return '#1f2937';
             }}
           />

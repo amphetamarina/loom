@@ -43,37 +43,40 @@ export class AIService {
       }
 
       default:
-        throw new Error(`Provider não suportado: ${this.config.provider}`);
+        throw new Error(`Unsupported provider: ${this.config.provider}`);
     }
   }
 
-  async generateStreaming(
+  async generateCompletions(
     prompt: string,
-    settings: GenerationSettings,
-    onChunk: (completionIndex: number, text: string, done: boolean) => void
-  ): Promise<void> {
+    settings: GenerationSettings
+  ): Promise<string[]> {
     try {
-      // Generate each continuation sequentially with streaming
+      const results: string[] = [];
+
+      // Generate each continuation sequentially
       for (let i = 0; i < settings.num_continuations; i++) {
         // Use completions API if configured, otherwise use chat API
         if (this.config.api_type === 'completions') {
-          await this.generateCompletionStreaming(prompt, settings, i, onChunk);
+          const text = await this.generateCompletion(prompt, settings);
+          results.push(text);
         } else {
-          await this.generateSingleStreaming(prompt, settings, i, onChunk);
+          const text = await this.generateSingle(prompt, settings);
+          results.push(text);
         }
       }
+
+      return results;
     } catch (error) {
-      console.error('Streaming generation error:', error);
+      console.error('Generation error:', error);
       throw error;
     }
   }
 
-  private async generateCompletionStreaming(
+  private async generateCompletion(
     prompt: string,
-    settings: GenerationSettings,
-    completionIndex: number,
-    onChunk: (completionIndex: number, text: string, done: boolean) => void
-  ): Promise<void> {
+    settings: GenerationSettings
+  ): Promise<string> {
     // Build the full prompt with system prompt if configured
     let fullPrompt = prompt;
     if (this.config.system_prompt) {
@@ -97,7 +100,7 @@ export class AIService {
       model: settings.model,
       prompt: fullPrompt,
       temperature: settings.temperature,
-      stream: true,
+      stream: false,
     };
 
     // Prepare headers
@@ -110,7 +113,7 @@ export class AIService {
       headers['Authorization'] = `Bearer ${this.config.api_key}`;
     }
 
-    // Make the streaming request
+    // Make the request
     const response = await fetch(url, {
       method: 'POST',
       headers,
@@ -121,54 +124,14 @@ export class AIService {
       throw new Error(`Completions API error: ${response.status} ${response.statusText}`);
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body');
-    }
-
-    const decoder = new TextDecoder();
-    let fullText = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              const text = parsed.choices?.[0]?.text || '';
-              if (text) {
-                fullText += text;
-                onChunk(completionIndex, fullText, false);
-              }
-            } catch (e) {
-              // Ignore parsing errors for incomplete chunks
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-
-    // Signal completion
-    onChunk(completionIndex, fullText, true);
+    const data = await response.json();
+    return data.choices?.[0]?.text || '';
   }
 
-  private async generateSingleStreaming(
+  private async generateSingle(
     prompt: string,
-    settings: GenerationSettings,
-    completionIndex: number,
-    onChunk: (completionIndex: number, text: string, done: boolean) => void
-  ): Promise<void> {
+    settings: GenerationSettings
+  ): Promise<string> {
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 
     // Add system prompt if configured
@@ -190,13 +153,11 @@ export class AIService {
 
     let fullText = '';
 
-    // Stream the response
+    // Collect the full response
     for await (const textPart of result.textStream) {
       fullText += textPart;
-      onChunk(completionIndex, fullText, false);
     }
 
-    // Signal completion
-    onChunk(completionIndex, fullText, true);
+    return fullText;
   }
 }
