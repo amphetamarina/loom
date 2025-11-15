@@ -34,6 +34,8 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTabName, setEditingTabName] = useState('');
 
   const { trees, createTree, exportTree, importTree, updateTreeName } = useTreeStore();
   const { preferences, toggleDarkMode } = useSettingsStore();
@@ -148,6 +150,27 @@ export default function App() {
     );
   };
 
+  const handleTabNameEdit = (tabId: string, currentName: string) => {
+    setEditingTabId(tabId);
+    setEditingTabName(currentName);
+  };
+
+  const handleTabNameSave = (tabId: string, treeId: string) => {
+    if (editingTabName.trim()) {
+      // Update both the tab name and the tree name
+      setTabs(tabs.map(t => t.id === tabId ? { ...t, name: editingTabName } : t));
+      updateTreeName(treeId, editingTabName);
+      toast.success('Nome atualizado');
+    }
+    setEditingTabId(null);
+    setEditingTabName('');
+  };
+
+  const handleTabNameCancel = () => {
+    setEditingTabId(null);
+    setEditingTabName('');
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
       <Toaster position="top-right" />
@@ -228,7 +251,35 @@ export default function App() {
             )}
             onClick={() => setActiveTabId(tab.id)}
           >
-            <span className="text-sm">{tab.name}</span>
+            {editingTabId === tab.id ? (
+              <input
+                type="text"
+                value={editingTabName}
+                onChange={(e) => setEditingTabName(e.target.value)}
+                onBlur={() => handleTabNameSave(tab.id, tab.treeId)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleTabNameSave(tab.id, tab.treeId);
+                  } else if (e.key === 'Escape') {
+                    handleTabNameCancel();
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+                className="text-sm bg-transparent border-b border-primary outline-none px-1 w-32"
+              />
+            ) : (
+              <span
+                className="text-sm"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  handleTabNameEdit(tab.id, tab.name);
+                }}
+                title="Clique duplo para editar"
+              >
+                {tab.name}
+              </span>
+            )}
             {tabs.length > 1 && (
               <button
                 onClick={(e) => {

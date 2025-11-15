@@ -180,6 +180,15 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
     setSelectedNodeForDetail(nodeId);
   }, []);
 
+  const handleAddChild = useCallback(
+    (nodeId: string) => {
+      // Create a new empty child node
+      createNode(treeId, '(novo nó - clique duplo para editar)', nodeId);
+      toast.success('Nó filho adicionado');
+    },
+    [treeId, createNode]
+  );
+
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
     if (!tree) return { nodes: [], edges: [] };
 
@@ -199,6 +208,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
           onEdit: handleEditNode,
           onGenerate: handleGenerateFromNode,
           onDetailClick: handleNodeDetailClick,
+          onAddChild: handleAddChild,
         },
       });
     });
@@ -227,6 +237,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
             onEdit: () => {},
             onGenerate: () => {},
             onDetailClick: () => {},
+            onAddChild: () => {},
           },
         });
       }
@@ -277,7 +288,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ treeId }) => {
     });
 
     return { nodes: allNodes, edges };
-  }, [tree, calculateLayout, handleEditNode, handleGenerateFromNode, handleNodeDetailClick, generatingNodes, streamingNodes]);
+  }, [tree, calculateLayout, handleEditNode, handleGenerateFromNode, handleNodeDetailClick, handleAddChild, generatingNodes, streamingNodes]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);

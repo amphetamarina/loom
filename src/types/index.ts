@@ -61,6 +61,8 @@ export interface ModelConfig {
   type: 'openai' | 'openai-chat' | 'together' | 'llama-cpp' | 'custom';
   api_base?: string;
   api_key?: string;
+  use_max_completion_tokens?: boolean;
+  system_prompt?: string;
 }
 
 export interface Preferences {

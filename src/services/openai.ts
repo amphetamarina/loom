@@ -60,15 +60,32 @@ export class OpenAIService {
     completionIndex: number,
     onChunk: (completionIndex: number, text: string, done: boolean) => void
   ): Promise<void> {
-    const stream = await this.client.chat.completions.create({
+    const messages: Array<{ role: string; content: string }> = [];
+
+    // Add system prompt if configured
+    if (this.config.system_prompt) {
+      messages.push({ role: 'system', content: this.config.system_prompt });
+    }
+
+    messages.push({ role: 'user', content: prompt });
+
+    const requestParams: any = {
       model: settings.model,
-      messages: [{ role: 'user', content: prompt }],
+      messages,
       temperature: settings.temperature,
-      max_tokens: settings.response_length,
       top_p: settings.top_p,
       stop: settings.stop,
       stream: true,
-    });
+    };
+
+    // Use max_completion_tokens if configured, otherwise use max_tokens
+    if (this.config.use_max_completion_tokens) {
+      requestParams.max_completion_tokens = settings.response_length;
+    } else {
+      requestParams.max_tokens = settings.response_length;
+    }
+
+    const stream = await this.client.chat.completions.create(requestParams);
 
     let fullText = '';
 
@@ -119,17 +136,34 @@ export class OpenAIService {
     prompt: string,
     settings: GenerationSettings
   ): Promise<GenerationResponse> {
-    const response = await this.client.chat.completions.create({
+    const messages: Array<{ role: string; content: string }> = [];
+
+    // Add system prompt if configured
+    if (this.config.system_prompt) {
+      messages.push({ role: 'system', content: this.config.system_prompt });
+    }
+
+    messages.push({ role: 'assistant', content: prompt });
+
+    const requestParams: any = {
       model: settings.model,
-      messages: [{ role: 'assistant', content: prompt }],
+      messages,
       temperature: settings.temperature,
-      max_tokens: settings.response_length,
       top_p: settings.top_p,
       n: settings.num_continuations,
       stop: settings.stop,
       logprobs: true,
       top_logprobs: Math.max(1, settings.logprobs), // Must be at least 1
-    });
+    };
+
+    // Use max_completion_tokens if configured, otherwise use max_tokens
+    if (this.config.use_max_completion_tokens) {
+      requestParams.max_completion_tokens = settings.response_length;
+    } else {
+      requestParams.max_tokens = settings.response_length;
+    }
+
+    const response = await this.client.chat.completions.create(requestParams);
 
     return this.formatChatResponse(response, prompt);
   }

@@ -29,6 +29,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ onClose }) => {
       type: newModelConfig.type || 'openai-chat',
       api_base: newModelConfig.api_base,
       api_key: newModelConfig.api_key,
+      use_max_completion_tokens: newModelConfig.use_max_completion_tokens,
+      system_prompt: newModelConfig.system_prompt,
     });
 
     setNewModelName('');
@@ -208,12 +210,40 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ onClose }) => {
                           Se vazio, usará a variável de ambiente VITE_OPENAI_API_KEY
                         </p>
                       </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={config.use_max_completion_tokens || false}
+                            onChange={(e) => handleUpdateModel(modelName, { use_max_completion_tokens: e.target.checked })}
+                            className="rounded"
+                          />
+                          Usar max_completion_tokens (modelos novos como o1)
+                        </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm mb-1">System Prompt (opcional)</label>
+                        <textarea
+                          value={config.system_prompt || ''}
+                          onChange={(e) => handleUpdateModel(modelName, { system_prompt: e.target.value })}
+                          placeholder="Você é um assistente útil..."
+                          rows={3}
+                          className="w-full p-2 bg-background border border-border rounded text-sm resize-none"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Prompt do sistema para modelos de chat
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-sm space-y-1 text-muted-foreground">
                       <p>Tipo: {config.type}</p>
                       {config.api_base && <p>Base URL: {config.api_base}</p>}
                       <p>API Key: {config.api_key ? '••••••••' : 'Usando .env'}</p>
+                      {config.use_max_completion_tokens && <p>Usa max_completion_tokens: Sim</p>}
+                      {config.system_prompt && <p>System Prompt: {config.system_prompt.substring(0, 50)}...</p>}
                     </div>
                   )}
                 </div>
@@ -272,6 +302,29 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ onClose }) => {
                   onChange={(e) => setNewModelConfig({ ...newModelConfig, api_key: e.target.value })}
                   placeholder="sk-..."
                   className="w-full p-2 bg-background border border-border rounded text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newModelConfig.use_max_completion_tokens || false}
+                    onChange={(e) => setNewModelConfig({ ...newModelConfig, use_max_completion_tokens: e.target.checked })}
+                    className="rounded"
+                  />
+                  Usar max_completion_tokens (modelos novos como o1)
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">System Prompt (opcional)</label>
+                <textarea
+                  value={newModelConfig.system_prompt || ''}
+                  onChange={(e) => setNewModelConfig({ ...newModelConfig, system_prompt: e.target.value })}
+                  placeholder="Você é um assistente útil..."
+                  rows={3}
+                  className="w-full p-2 bg-background border border-border rounded text-sm resize-none"
                 />
               </div>
 

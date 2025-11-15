@@ -1,6 +1,6 @@
 import React, { useState, useCallback, memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { BookmarkIcon, Zap, Maximize2 } from 'lucide-react';
+import { BookmarkIcon, Zap, Maximize2, Plus } from 'lucide-react';
 import clsx from 'clsx';
 
 interface NodeData {
@@ -12,6 +12,7 @@ interface NodeData {
   onEdit: (nodeId: string, text: string) => void;
   onGenerate: (nodeId: string) => void;
   onDetailClick: (nodeId: string) => void;
+  onAddChild: (nodeId: string) => void;
 }
 
 export const EditableNode = memo(({ id, data, selected }: NodeProps<NodeData>) => {
@@ -60,6 +61,14 @@ export const EditableNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
     (e: React.MouseEvent) => {
       e.stopPropagation();
       data.onDetailClick(id);
+    },
+    [id, data]
+  );
+
+  const handleAddChildClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      data.onAddChild(id);
     },
     [id, data]
   );
@@ -163,13 +172,22 @@ export const EditableNode = memo(({ id, data, selected }: NodeProps<NodeData>) =
             </button>
           )}
           {selected && !isEditing && !data.isStreaming && (
-            <button
-              onClick={handleGenerateClick}
-              className="p-1.5 bg-primary/20 hover:bg-primary/30 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 animate-pop"
-              title="Gerar continuações (ou pressione Enter ao editar)"
-            >
-              <Zap size={16} className="text-primary" fill="currentColor" />
-            </button>
+            <>
+              <button
+                onClick={handleAddChildClick}
+                className="p-1.5 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+                title="Adicionar nó filho manualmente"
+              >
+                <Plus size={16} className="text-green-600 dark:text-green-400" />
+              </button>
+              <button
+                onClick={handleGenerateClick}
+                className="p-1.5 bg-primary/20 hover:bg-primary/30 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 animate-pop"
+                title="Gerar continuações (ou pressione Enter ao editar)"
+              >
+                <Zap size={16} className="text-primary" fill="currentColor" />
+              </button>
+            </>
           )}
         </div>
       </div>
