@@ -1,8 +1,9 @@
-# loom-web
+# webloom
 
 A web-based fork of the [original loom](https://github.com/socketteer/loom) - a tree-based writing interface powered by AI.
 
-<img width="1041" height="683" alt="image" src="https://github.com/user-attachments/assets/d538cf66-ee4f-4539-8907-8d1bd7475b60" />
+<img width="1266" height="696" alt="image" src="https://github.com/user-attachments/assets/05d9ffc9-43ca-475e-92de-34040a73a2f3" />
+
 
 
 ## Features
