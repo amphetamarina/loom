@@ -1,0 +1,205 @@
+import React, { useState } from 'react';
+import { useTreeStore } from '@/stores/treeStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { OpenAIService } from '@/services/openai';
+import { X, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+interface GenerateDialogProps {
+  treeId: string;
+  onClose: () => void;
+}
+
+export const GenerateDialog: React.FC<GenerateDialogProps> = ({ treeId, onClose }) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const { trees, getCurrentNode, getAncestry, createNode, setCurrentNode } = useTreeStore();
+  const { generationSettings, modelConfigs } = useSettingsStore();
+
+  const tree = trees[treeId];
+  const currentNode = getCurrentNode(treeId);
+
+  const handleGenerate = async () => {
+    if (!currentNode) return;
+
+    setIsGenerating(true);
+    try {
+      // Build prompt from ancestry
+      const ancestry = getAncestry(treeId, currentNode.id);
+      const prompt = ancestry.map((node) => node.text).join('\n');
+
+      // Get model config
+      const modelConfig = modelConfigs[generationSettings.model];
+      if (!modelConfig) {
+        throw new Error('Model configuration not found');
+      }
+
+      // Initialize OpenAI service
+      const openaiService = new OpenAIService(modelConfig);
+
+      // Generate completions
+      const response = await openaiService.generate(prompt, generationSettings);
+
+      // Create child nodes for each completion
+      response.completions.forEach((completion) => {
+        const childId = createNode(treeId, completion.text, currentNode.id);
+        // Store token data if available
+        if (completion.tokens.length > 0) {
+          useTreeStore.getState().updateNode(treeId, childId, {
+            tokens: completion.tokens,
+            finishReason: completion.finishReason,
+          });
+        }
+      });
+
+      // Navigate to first child
+      if (response.completions.length > 0) {
+        const firstChildId = tree.nodes[currentNode.id].children[0];
+        if (firstChildId) {
+          setCurrentNode(treeId, firstChildId);
+        }
+      }
+
+      toast.success(`Generated ${response.completions.length} continuations`);
+      onClose();
+    } catch (error) {
+      console.error('Generation failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Generation failed');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (!tree || !currentNode) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-background border border-border rounded-lg w-full max-w-2xl max-h-[80vh] overflow-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-xl font-semibold">Generate Continuations</h2>
+          <button onClick={onClose} className="p-2 hover:bg-accent rounded">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          <div>
+            <label className="block text-sm font-medium mb-2">Model</label>
+            <select
+              value={generationSettings.model}
+              onChange={(e) =>
+                useSettingsStore.getState().updateGenerationSettings({ model: e.target.value })
+              }
+              className="w-full p-2 bg-background border border-border rounded"
+            >
+              {Object.keys(modelConfigs).map((modelName) => (
+                <option key={modelName} value={modelName}>
+                  {modelName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Number of continuations</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={generationSettings.num_continuations}
+                onChange={(e) =>
+                  useSettingsStore
+                    .getState()
+                    .updateGenerationSettings({ num_continuations: parseInt(e.target.value) })
+                }
+                className="w-full p-2 bg-background border border-border rounded"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Max tokens</label>
+              <input
+                type="number"
+                min="10"
+                max="4000"
+                value={generationSettings.response_length}
+                onChange={(e) =>
+                  useSettingsStore
+                    .getState()
+                    .updateGenerationSettings({ response_length: parseInt(e.target.value) })
+                }
+                className="w-full p-2 bg-background border border-border rounded"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Temperature</label>
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value={generationSettings.temperature}
+                onChange={(e) =>
+                  useSettingsStore
+                    .getState()
+                    .updateGenerationSettings({ temperature: parseFloat(e.target.value) })
+                }
+                className="w-full p-2 bg-background border border-border rounded"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Top P</label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                value={generationSettings.top_p}
+                onChange={(e) =>
+                  useSettingsStore
+                    .getState()
+                    .updateGenerationSettings({ top_p: parseFloat(e.target.value) })
+                }
+                className="w-full p-2 bg-background border border-border rounded"
+              />
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Current story</label>
+            <div className="p-4 bg-muted rounded max-h-48 overflow-auto text-sm">
+              {getAncestry(treeId, currentNode.id)
+                .map((node) => node.text)
+                .join('\n')}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-border rounded hover:bg-accent"
+            disabled={isGenerating}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 flex items-center gap-2 disabled:opacity-50"
+          >
+            {isGenerating && <Loader2 size={16} className="animate-spin" />}
+            {isGenerating ? 'Generating...' : 'Generate'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
